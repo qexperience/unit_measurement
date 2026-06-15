@@ -749,56 +749,65 @@ function show(id) {
 
 <!-- ═══════════════════════════════════════════════════
      GOOGLE APPS SCRIPT — paste this in script.google.com
-     Create a new standalone script, paste, deploy as Web App
-     (Execute as: Me, Who has access: Anyone)
-     Copy the deployment URL and paste above in GAS_URL
+     (Bound to a Google Sheet)
+
+     SETUP:
+     1. Create a new Google Sheet (e.g. "Units Test Results - XI")
+     2. Extensions → Apps Script
+     3. Delete any default code, paste the code below
+     4. Click Deploy → New Deployment → Web app
+        - Execute as: Me
+        - Who has access: Anyone
+     5. Click Deploy, authorize access, copy the Web App URL
+     6. Paste that URL into GAS_URL above in this file
      ═══════════════════════════════════════════════════
 
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    var docId  = "YOUR_GOOGLE_DOC_ID_HERE"; // from the Doc URL
-    var doc    = DocumentApp.openById(docId);
-    var body   = doc.getBody();
 
-    // ── First time: create Question Paper heading once ──
-    var content = body.getText();
-    if (content.indexOf("UNITS & MEASUREMENT – XI STD") === -1) {
-      body.appendParagraph("AJIT SIR'S PHYSICS TUTORIALS, SANGAMNER")
-          .setHeading(DocumentApp.ParagraphHeading.HEADING1)
-          .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-      body.appendParagraph("Basics of Units & Measurement | XI Std | 30 Marks | 30 Min")
-          .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-      body.appendParagraph("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-          .setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-      body.appendParagraph("UNITS & MEASUREMENT – XI STD – STUDENT RESULT LOG")
-          .setHeading(DocumentApp.ParagraphHeading.HEADING2);
-
-      // Create table header
-      var table = body.appendTable();
-      var hdr = table.appendTableRow();
-      ["Timestamp","Name","Contact","Score","Out Of","Percentage","Grade"]
-        .forEach(function(h) { hdr.appendTableCell(h); });
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Results");
+    if (!sheet) {
+      sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Results");
     }
 
-    // Find existing table and append row
-    var tables = body.getTables();
-    var t = tables[tables.length - 1];
-    var row = t.appendTableRow();
-    row.appendTableCell(data.timestamp);
-    row.appendTableCell(data.name);
-    row.appendTableCell(String(data.contact));
-    row.appendTableCell(String(data.score));
-    row.appendTableCell(String(data.outOf));
-    row.appendTableCell(data.percentage + "%");
-    row.appendTableCell(data.grade);
+    // Add header row once, if sheet is empty
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        "Timestamp", "Name", "Contact Number",
+        "Score", "Out Of", "Percentage", "Grade",
+        "Chapter", "Standard"
+      ]);
+      sheet.getRange(1, 1, 1, 9)
+           .setFontWeight("bold")
+           .setBackground("#e6c670")
+           .setHorizontalAlignment("center");
+      sheet.setFrozenRows(1);
+    }
 
-    doc.saveAndClose();
-    return ContentService.createTextOutput("OK")
-      .setMimeType(ContentService.MimeType.TEXT);
-  } catch(err) {
-    return ContentService.createTextOutput("ERROR: " + err.message)
-      .setMimeType(ContentService.MimeType.TEXT);
+    sheet.appendRow([
+      data.timestamp,
+      data.name,
+      data.contact,
+      data.score,
+      data.outOf,
+      data.percentage + "%",
+      data.grade,
+      data.chapter,
+      data.std
+    ]);
+
+    // Auto-resize columns for readability
+    sheet.autoResizeColumns(1, 9);
+
+    return ContentService.createTextOutput(
+      JSON.stringify({ result: "success" })
+    ).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ result: "error", error: err.message })
+    ).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
